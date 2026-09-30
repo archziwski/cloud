@@ -1,0 +1,497 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Skyfile</title>
+<!--
+  Skyfile — static edition for GitHub Pages.
+
+  Deploy: put this single file in a GitHub repository (e.g. as index.html),
+  then open the repo's Settings -> Pages and choose "Deploy from a branch":
+  branch `main`, folder `/ (root)`. GitHub gives you a URL like
+  https://<you>.github.io/<repo>/ and this page runs there with no build step.
+
+  Everything is stored in your browser (IndexedDB): uploads, edits to the trash,
+  all of it. It survives reloads and restarts on the same browser, but it is not
+  shared across devices or with other people — there is no server here.
+-->
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f4f5fb;
+    --panel: #ffffff;
+    --panel-edge: #e3e6f0;
+    --text: #1c2030;
+    --muted: #6b7186;
+    --accent: #4d6bfb;
+    --accent-soft: color-mix(in srgb, var(--accent) 12%, transparent);
+    --danger: #d64550;
+    --row-hover: #f5f7ff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #101320;
+      --panel: #181c2b;
+      --panel-edge: #2a2f45;
+      --text: #e8eaf2;
+      --muted: #9aa1b8;
+      --accent: #6f8bff;
+      --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
+      --danger: #ff6b76;
+      --row-hover: #1f2436;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 22px;
+    border-bottom: 1px solid var(--panel-edge);
+    background: var(--panel);
+    position: sticky;
+    top: 0;
+    z-index: 5;
+  }
+  header h1 {
+    margin: 0;
+    font-size: 19px;
+    letter-spacing: 0.2px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+  }
+  header h1 svg { color: var(--accent); }
+  header .stats {
+    margin-left: auto;
+    font-size: 13px;
+    color: var(--muted);
+    background: var(--accent-soft);
+    padding: 5px 12px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  main {
+    width: min(980px, 100%);
+    margin: 0 auto;
+    padding: 22px 22px 60px;
+    flex: 1;
+  }
+  .toolbar {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+  input[type="search"] {
+    flex: 1;
+    min-width: 200px;
+    padding: 10px 14px;
+    border: 1px solid var(--panel-edge);
+    border-radius: 10px;
+    background: var(--panel);
+    color: var(--text);
+    font: inherit;
+    outline: none;
+  }
+  input[type="search"]:focus { border-color: var(--accent); }
+  button {
+    font: inherit;
+    border: 1px solid var(--panel-edge);
+    background: var(--panel);
+    color: var(--text);
+    border-radius: 10px;
+    padding: 9px 16px;
+    cursor: pointer;
+    transition: filter 0.15s, background 0.15s;
+  }
+  button:hover { filter: brightness(1.06); }
+  button.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    font-weight: 600;
+  }
+  button.ghost { border-color: transparent; background: transparent; color: var(--muted); }
+  button.ghost:hover { color: var(--text); background: var(--accent-soft); }
+  button.danger-ghost { border-color: transparent; background: transparent; color: var(--danger); }
+  button.danger-ghost:hover { background: color-mix(in srgb, var(--danger) 12%, transparent); }
+  .tabs { display: inline-flex; border: 1px solid var(--panel-edge); border-radius: 10px; overflow: hidden; }
+  .tabs button { border: 0; border-radius: 0; background: transparent; }
+  .tabs button[aria-selected="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  .shelf {
+    background: var(--panel);
+    border: 1px solid var(--panel-edge);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .empty { padding: 70px 20px; text-align: center; color: var(--muted); }
+  ul.files { list-style: none; margin: 0; padding: 0; }
+  ul.files li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 16px;
+    border-top: 1px solid var(--panel-edge);
+  }
+  ul.files li:first-child { border-top: 0; }
+  ul.files li:hover { background: var(--row-hover); }
+  ul.files .icon { flex: none; color: var(--accent); display: grid; place-items: center; }
+  ul.files .meta { min-width: 0; flex: 1; }
+  ul.files .name { font-weight: 600; overflow-wrap: anywhere; }
+  ul.files .sub { font-size: 12.5px; color: var(--muted); }
+  ul.files .actions { display: flex; gap: 2px; flex: none; }
+  .dropzone {
+    outline: 2px dashed var(--accent);
+    outline-offset: -8px;
+    background: var(--accent-soft);
+  }
+  .note {
+    margin-top: 18px;
+    font-size: 12.5px;
+    color: var(--muted);
+    text-align: center;
+  }
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: 24px;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--text);
+    color: var(--bg);
+    padding: 10px 18px;
+    border-radius: 10px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s, transform 0.2s;
+    max-width: min(90vw, 480px);
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  dialog {
+    border: 1px solid var(--panel-edge);
+    border-radius: 14px;
+    background: var(--panel);
+    color: var(--text);
+    padding: 22px;
+    max-width: 360px;
+  }
+  dialog::backdrop { background: rgb(0 0 0 / 0.45); }
+  dialog .row { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+  dialog p { margin: 0; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M17.5 19a4.5 4.5 0 1 0-.42-8.98 6 6 0 0 0-11.6 1.6A3.5 3.5 0 0 0 6.5 19Z"/>
+    </svg>
+    Skyfile
+  </h1>
+  <span class="stats" id="stats">0 files · 0 B</span>
+</header>
+
+<main>
+  <div class="toolbar">
+    <input type="search" id="search" placeholder="Search names…" autocomplete="off">
+    <button class="primary" id="upload-btn" type="button">Upload files</button>
+    <input type="file" id="file-input" multiple hidden>
+    <div class="tabs" role="tablist">
+      <button id="tab-files" role="tab" aria-selected="true" type="button">Files</button>
+      <button id="tab-trash" role="tab" aria-selected="false" type="button">Trash</button>
+    </div>
+  </div>
+
+  <div class="shelf" id="shelf"></div>
+
+  <p class="note">
+    Stored in this browser (IndexedDB) — they survive reloads on this device,
+    but are not shared with other devices or people.
+  </p>
+</main>
+
+<div class="toast" id="toast" role="status"></div>
+
+<dialog id="confirm-box">
+  <p id="confirm-text"></p>
+  <div class="row">
+    <button id="confirm-cancel" type="button">Cancel</button>
+    <button id="confirm-ok" class="primary" type="button">Delete</button>
+  </div>
+</dialog>
+
+<script type="module">
+  'use strict';
+
+  // ---------- tiny IndexedDB layer ----------------------------------------
+
+  const DB_NAME = 'skyfile';
+  const STORE = 'files';
+
+  function openDb() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, 1);
+      req.onupgradeneeded = () => {
+        req.result.createObjectStore(STORE, { keyPath: 'id' });
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  function tx(db, mode, fn) {
+    return new Promise((resolve, reject) => {
+      const t = db.transaction(STORE, mode);
+      const out = fn(t.objectStore(STORE));
+      t.oncomplete = () => resolve(out.result ?? out);
+      t.onerror = () => reject(t.error);
+      t.onabort = () => reject(t.error);
+    });
+  }
+
+  const dbp = openDb();
+  const putFile = (record) => dbp.then((db) => tx(db, 'readwrite', (s) => s.put(record)));
+  const getFile = (id) => dbp.then((db) => tx(db, 'readonly', (s) => s.get(id)));
+  const getAll = () => dbp.then((db) => tx(db, 'readonly', (s) => s.getAll()));
+  const delFile = (id) => dbp.then((db) => tx(db, 'readwrite', (s) => s.delete(id)));
+
+  // ---------- state --------------------------------------------------------
+
+  const state = { view: 'files', query: '' };
+
+  const icon = {
+    image: '<path d="M3 5.5A2.5 2.5 0 0 1 5.5 3h13A2.5 2.5 0 0 1 21 5.5v13a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 18.5Z"/><circle cx="8.5" cy="9" r="1.6"/><path d="m21 15-4.6-4.6L7 19"/>',
+    video: '<path d="m22 8-6 4 6 4V8Z"/><rect x="2" y="6" width="14" height="12" rx="2"/>',
+    audio: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
+    code: '<path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/>',
+    archive: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M11 8h2M11 12h2M11 16h2"/>',
+    document: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6M9 13h6M9 17h6"/>',
+    other: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/>',
+  };
+
+  const $ = (sel) => document.querySelector(sel);
+  const shelf = $('#shelf');
+  const searchBox = $('#search');
+
+  const kindOf = (mime = '', name = '') => {
+    if (mime.startsWith('image/')) return 'image';
+    if (mime.startsWith('video/')) return 'video';
+    if (mime.startsWith('audio/')) return 'audio';
+    if (mime === 'application/pdf' || mime.startsWith('text/')) return 'document';
+    if (/(zip|tar|gzip|compress|7z|rar|x-iso)/i.test(mime) || /\.(zip|7z|rar|tar|gz|tgz|iso)$/i.test(name)) return 'archive';
+    if (/^(text|application)/.test(mime) && /javascript|json|xml|python|html|css|x-sh/.test(mime)) return 'code';
+    if (/\.(js|mjs|ts|py|rb|go|rs|java|c|cpp|json|html|css|sh|yml|yaml)$/i.test(name)) return 'code';
+    return mime.startsWith('text/') ? 'document' : 'other';
+  };
+
+  const svgIcon = (kind) =>
+    `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${icon[kind]}</svg>`;
+
+  const formatBytes = (n) => {
+    n = Number(n) || 0;
+    if (n < 1024) return `${n} B`;
+    const units = ['KB', 'MB', 'GB', 'TB'];
+    let v = n / 1024, u = 0;
+    while (v >= 1024 && u < units.length - 1) { v /= 1024; u += 1; }
+    return `${v >= 10 ? v.toFixed(0) : v.toFixed(1)} ${units[u]}`;
+  };
+
+  const formatDate = (iso) => new Date(iso).toLocaleString(undefined, {
+    year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
+
+  const esc = (s) => String(s).replaceAll('&', '&amp;').replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
+
+  let toastTimer;
+  function toast(message) {
+    const el = $('#toast');
+    el.textContent = message;
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+  }
+
+  function confirmBox(text) {
+    return new Promise((resolve) => {
+      const box = $('#confirm-box');
+      $('#confirm-text').textContent = text;
+      box.showModal();
+      const done = (value) => { box.close(); resolve(value); };
+      $('#confirm-ok').onclick = () => done(true);
+      $('#confirm-cancel').onclick = () => done(false);
+      box.oncancel = () => resolve(false);
+    });
+  }
+
+  // ---------- rendering ----------------------------------------------------
+
+  async function render() {
+    const all = await getAll();
+    const query = state.query.trim().toLowerCase();
+    const trashed = state.view === 'trash';
+
+    const rows = all
+      .filter((r) => Boolean(r.trashedAt) === trashed)
+      .filter((r) => !query || r.name.toLowerCase().includes(query))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
+    const liveBytes = all.filter((r) => !r.trashedAt).reduce((sum, r) => sum + r.size, 0);
+    $('#stats').textContent =
+      `${all.filter((r) => !r.trashedAt).length} files · ${formatBytes(liveBytes)}`;
+
+    if (!rows.length) {
+      shelf.innerHTML = `<div class="empty">${
+        trashed ? 'Trash is empty.'
+        : query ? 'No files match that search.'
+        : 'Nothing here yet. Drop files anywhere on this page, or use Upload files.'
+      }</div>`;
+      return;
+    }
+
+    shelf.innerHTML = `<ul class="files">${
+      rows.map((r) => {
+        const kind = kindOf(r.mime, r.name);
+        return `<li data-id="${esc(r.id)}">
+          <span class="icon">${svgIcon(kind)}</span>
+          <span class="meta">
+            <div class="name">${esc(r.name)}</div>
+            <div class="sub">${formatBytes(r.size)} · ${esc(r.mime || 'unknown')} · ${formatDate(r.createdAt)}${
+              r.trashedAt ? ` · trashed ${formatDate(r.trashedAt)}` : ''
+            }</div>
+          </span>
+          <span class="actions">
+            <button class="ghost" data-act="open" type="button">Open</button>
+            <button class="ghost" data-act="download" type="button">Download</button>
+            ${trashed
+              ? `<button class="ghost" data-act="restore" type="button">Restore</button>
+                 <button class="danger-ghost" data-act="delete" type="button">Delete forever</button>`
+              : `<button class="ghost" data-act="trash" type="button">Trash</button>`}
+          </span>
+        </li>`;
+      }).join('')
+    }</ul>`;
+  }
+
+  async function openRecord(id, { download = false } = {}) {
+    const record = await getFile(id);
+    if (!record) return;
+    const url = URL.createObjectURL(record.data);
+    const a = document.createElement('a');
+    a.href = url;
+    if (download || !/^(image\/|text\/|application\/pdf)/.test(record.mime)) {
+      a.download = record.name;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 30_000);
+    } else {
+      window.open(url, '_blank', 'noopener');
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    }
+  }
+
+  // ---------- events -------------------------------------------------------
+
+  $('#upload-btn').addEventListener('click', () => $('#file-input').click());
+
+  $('#file-input').addEventListener('change', async (event) => {
+    await addFiles([...event.target.files]);
+    event.target.value = '';
+  });
+
+  async function addFiles(files) {
+    if (!files.length) return;
+    for (const file of files) {
+      if (!file.size) { toast(`Skipped ${file.name}: it is empty.`); continue; }
+      await putFile({
+        id: crypto.randomUUID(),
+        name: file.name,
+        mime: file.type || 'application/octet-stream',
+        size: file.size,
+        data: file,
+        createdAt: new Date().toISOString(),
+        trashedAt: null,
+      });
+    }
+    toast(files.length === 1 ? `Added ${files[0].name}.` : `Added ${files.length} files.`);
+    await render();
+  }
+
+  shelf.addEventListener('click', async (event) => {
+    const button = event.target.closest('button[data-act]');
+    if (!button) return;
+    const id = button.closest('li').dataset.id;
+    const act = button.dataset.act;
+
+    if (act === 'open') return openRecord(id);
+    if (act === 'download') return openRecord(id, { download: true });
+
+    if (act === 'trash') {
+      const record = await getFile(id);
+      record.trashedAt = new Date().toISOString();
+      await putFile(record);
+      return render();
+    }
+    if (act === 'restore') {
+      const record = await getFile(id);
+      record.trashedAt = null;
+      await putFile(record);
+      return render();
+    }
+    if (act === 'delete') {
+      const record = await getFile(id);
+      const sure = await confirmBox(`Delete "${record.name}" forever? This cannot be undone.`);
+      if (!sure) return;
+      await delFile(id);
+      toast(`Deleted ${record.name}.`);
+      return render();
+    }
+  });
+
+  searchBox.addEventListener('input', () => {
+    state.query = searchBox.value;
+    render();
+  });
+
+  const setView = (view) => {
+    state.view = view;
+    $('#tab-files').setAttribute('aria-selected', String(view === 'files'));
+    $('#tab-trash').setAttribute('aria-selected', String(view === 'trash'));
+    render();
+  };
+  $('#tab-files').addEventListener('click', () => setView('files'));
+  $('#tab-trash').addEventListener('click', () => setView('trash'));
+
+  // Drop files anywhere on the page.
+  let dragDepth = 0;
+  document.addEventListener('dragenter', (event) => {
+    event.preventDefault();
+    dragDepth += 1;
+    document.body.classList.add('dropzone');
+  });
+  document.addEventListener('dragover', (event) => event.preventDefault());
+  document.addEventListener('dragleave', () => {
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (!dragDepth) document.body.classList.remove('dropzone');
+  });
+  document.addEventListener('drop', async (event) => {
+    event.preventDefault();
+    dragDepth = 0;
+    document.body.classList.remove('dropzone');
+    await addFiles([...event.dataTransfer.files]);
+  });
+
+  render();
+</script>
+</body>
+</html>
